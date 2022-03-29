@@ -1,0 +1,10 @@
+name: "undelete"
+# Version is the version of Helm plus the number of official builds for this
+# plugin
+version: "0.1.0"
+usage: "Recovers from a helm undelete --keep-history command"
+description: "Recovers from a helm undelete --keep-history command"
+useTunnel: true
+command: "$HELM_PLUGIN_DIR/undelete"
+# hooks:
+#   install: "$HELM_PLUGIN_DIR/install-binary.sh"

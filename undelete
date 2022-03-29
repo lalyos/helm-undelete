@@ -1,0 +1,45 @@
+#!/bin/bash
+info() {
+  echo "===> $*" >&2
+}
+
+deletedReleases=$(kubectl get secrets -l 'owner=helm, status=uninstalled' -o name|wc -l)
+if [[ $deletedReleases -lt 1 ]]; then 
+  echo no helm release to undelete ...
+  exit
+fi
+
+if [[ $deletedReleases -eq 1 ]]; then
+  secret=$(kubectl get secrets -l 'owner=helm, status=uninstalled' -o name)
+else 
+  PS3='Choose release: '
+  select secret in $(kubectl get secrets -l 'owner=helm, status=uninstalled' -o name); do
+    break
+  done
+fi
+
+info "selected: ${secret}"
+
+kubectl get ${secret} \
+  -o go-template='{{ .data.release | base64decode | base64decode }}' \
+  | gunzip \
+  | jq '.info.status |= "deployed" 
+      | .info.deleted |="" 
+      | .info.description="undeleted ..." ' \
+> undeleted.json
+#cp undeleted.json undeleted.json.bak
+gzip undeleted.json
+B64V=$(base64 -w0 < undeleted.json.gz)
+rm undeleted.json.gz
+
+# update release json inside secret
+kubectl create secret generic ${secret#*/} \
+  --from-literal release=${B64V} \
+  --dry-run -o yaml \
+  | kubectl apply -f -
+
+kubectl label ${secret} --overwrite status=deployed
+
+## reecreate resources
+release=$(kubectl get secrets ${secret#*/} -ojsonpath='{.metadata.labels.name}')
+helm get manifest $release | kubectl apply -f -
